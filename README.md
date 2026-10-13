@@ -95,6 +95,10 @@ go build -o terry
 ./terry
 ```
 
+The `Dockerfile` builds a static binary on a distroless image. Runway's Go
+buildpack lags behind the Go version in `go.mod`, so it's used instead; keep
+the `golang` image tag in sync with `go.mod`.
+
 ## Development
 
 ```sh
