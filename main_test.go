@@ -958,3 +958,28 @@ func TestOpenAITranscriberErrorStatus(t *testing.T) {
 		t.Fatalf("expected error mentioning 401, got %v", err)
 	}
 }
+
+// iOS Safari only plays media from servers that honour Range requests.
+func TestRecordingServesByteRanges(t *testing.T) {
+	name := "20260101120000-ABCDEFGHIJKLMNOPQRSTUVWXYZ.wav"
+	store := &mockStore{objects: map[string][]byte{"voicemail/" + name: []byte("wav-bytes")}}
+	srv := newServer(testConfig(t), http.DefaultClient, store, nil)
+
+	req := httptest.NewRequestWithContext(t.Context(), "GET", "/recordings/"+name, nil)
+	req.Header.Set("Range", "bytes=0-1")
+	w := httptest.NewRecorder()
+	srv.ServeHTTP(w, req)
+
+	if w.Code != http.StatusPartialContent {
+		t.Fatalf("expected 206, got %d", w.Code)
+	}
+	if cr := w.Header().Get("Content-Range"); cr != "bytes 0-1/9" {
+		t.Errorf("expected Content-Range bytes 0-1/9, got %q", cr)
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "audio/wav" {
+		t.Errorf("expected audio/wav, got %q", ct)
+	}
+	if w.Body.String() != "wa" {
+		t.Errorf("unexpected body %q", w.Body.String())
+	}
+}

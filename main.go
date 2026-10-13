@@ -566,18 +566,22 @@ func (s *server) handleRecording(w http.ResponseWriter, r *http.Request) {
 	}
 	defer out.Body.Close()
 
+	// Buffer the recording so ServeContent can answer Range requests, which
+	// iOS Safari needs to play audio. Recordings are capped at maxWAVSize.
+	audio, err := io.ReadAll(io.LimitReader(out.Body, maxWAVSize+1))
+	if err != nil {
+		slog.Error("failed to read recording", "error", err, "recording", name)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "audio/wav")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if out.ContentLength != nil {
-		w.Header().Set("Content-Length", strconv.FormatInt(*out.ContentLength, 10))
-	}
 	rc := http.NewResponseController(w)
 	if err := rc.SetWriteDeadline(time.Now().Add(recordingWriteTimeout)); err != nil && !errors.Is(err, http.ErrNotSupported) {
 		slog.Warn("failed to extend write deadline", "error", err)
 	}
-	if _, err := io.Copy(w, out.Body); err != nil {
-		slog.Warn("failed to stream recording", "error", err, "recording", name)
-	}
+	http.ServeContent(w, r, name, aws.ToTime(out.LastModified), bytes.NewReader(audio))
 }
 
 // The GSM 03.38 alphabet. Extension characters take two septets; any other
