@@ -112,12 +112,30 @@ func loadConfig(getenv func(string) string) (Configuration, error) {
 		return Configuration{}, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
 
-	u, err := url.Parse(host)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return Configuration{}, fmt.Errorf("HOST must be an absolute http(s) URL, got %q", host)
+	u, err := parseHTTPURL("HOST", host)
+	if err != nil {
+		return Configuration{}, err
 	}
 	c.Host = u
+	for _, v := range []struct{ name, value string }{
+		{"S3_ENDPOINT", c.S3Endpoint},
+		{"VOICEMAIL_AUDIO", c.VoicemailAudio},
+	} {
+		if _, err := parseHTTPURL(v.name, v.value); err != nil {
+			return Configuration{}, err
+		}
+	}
 	return c, nil
+}
+
+// parseHTTPURL parses the value of the environment variable name, which must
+// be an absolute http(s) URL.
+func parseHTTPURL(name, raw string) (*url.URL, error) {
+	u, err := url.Parse(raw)
+	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+		return nil, fmt.Errorf("%s must be an absolute http(s) URL, got %q", name, raw)
+	}
+	return u, nil
 }
 
 // webhookURL returns the public URL for path with the webhook credentials embedded,

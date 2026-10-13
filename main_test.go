@@ -868,15 +868,18 @@ func TestLoadConfigReportsAllMissingVariables(t *testing.T) {
 	}
 }
 
-func TestLoadConfigRejectsInvalidHost(t *testing.T) {
-	for _, host := range []string{"example.com", "ftp://example.com", "https://"} {
-		t.Run(host, func(t *testing.T) {
-			env := validEnv()
-			env["HOST"] = host
-			if _, err := loadConfig(func(k string) string { return env[k] }); err == nil {
-				t.Fatalf("expected error for HOST=%q", host)
-			}
-		})
+func TestLoadConfigRejectsInvalidURLs(t *testing.T) {
+	for _, name := range []string{"HOST", "S3_ENDPOINT", "VOICEMAIL_AUDIO"} {
+		for _, value := range []string{"example.com", "hel1.your-objectstorage.com", "ftp://example.com", "https://"} {
+			t.Run(name+"="+value, func(t *testing.T) {
+				env := validEnv()
+				env[name] = value
+				_, err := loadConfig(func(k string) string { return env[k] })
+				if err == nil || !strings.Contains(err.Error(), name) {
+					t.Fatalf("expected error mentioning %s, got %v", name, err)
+				}
+			})
+		}
 	}
 }
 
